@@ -370,11 +370,22 @@
           gridEl.innerHTML = posCardsHtml.join('');
         } else {
           const mStatus = pData.market_status || {};
-          const headline = mStatus.headline || "CAPITAL PRESERVATION MODE";
-          const reason = mStatus.reason || "Capital safely allocated in cash. Bot is continuously screening the market for high-conviction breakout setups.";
-          const btcPrice = mStatus.btc_price ? `$${Number(mStatus.btc_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '--';
-          const btcEma = mStatus.btc_ema50 ? `$${Number(mStatus.btc_ema50).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '--';
-          const isDefensive = mStatus.badge === "DEFENSIVE" || headline.includes("PRESERVATION") || headline.includes("DEFENSE");
+          let headline = mStatus.headline || "CAPITAL PRESERVATION MODE";
+          let reason = mStatus.reason || "Capital safely allocated in cash. Bot is continuously screening the market for high-conviction breakout setups.";
+          const numBtcPrice = Number(mStatus.btc_price || 0);
+          const numBtcEma = Number(mStatus.btc_ema50 || 0);
+
+          // Defensive safety check: if BTC price is strictly below 4H EMA50, always force CAPITAL PRESERVATION MODE
+          if (numBtcPrice > 0 && numBtcEma > 0 && numBtcPrice < numBtcEma) {
+            headline = "CAPITAL PRESERVATION MODE";
+            if (reason.includes(">=") || !reason.includes("<")) {
+              reason = `BTC Short-Term Breakdown: Price $${numBtcPrice.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} < 4H EMA50 $${numBtcEma.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}. Altcoin purchases are frozen to avoid bull traps and protect capital.`;
+            }
+          }
+
+          const btcPrice = numBtcPrice ? `$${numBtcPrice.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '--';
+          const btcEma = numBtcEma ? `$${numBtcEma.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '--';
+          const isDefensive = (numBtcPrice > 0 && numBtcEma > 0 && numBtcPrice < numBtcEma) || mStatus.badge === "DEFENSIVE" || headline.includes("PRESERVATION") || headline.includes("DEFENSE");
           const badgeClass = isDefensive ? "text-amber-400 border-amber-500/30 bg-amber-500/10" : "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
           const dotClass = isDefensive ? "bg-amber-400" : "bg-emerald-400";
 
