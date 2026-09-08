@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>anti2 — Portfolio Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              black: '#000000',
+              surface: '#0a0a0a',
+              card: '#111111',
+              border: '#222222',
+              muted: '#71717a',
+              green: '#22c55e',
+              red: '#ef4444',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #000000;
+      color: #ffffff;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .metric-card {
+      background-color: #0c0c0c;
+      border: 1px solid #1f1f1f;
+      border-radius: 6px;
+    }
+    .metric-card:hover {
+      border-color: #333333;
+    }
+    .history-card {
+      background-color: #121212;
+      border: 1px solid #242424;
+      border-radius: 6px;
+    }
+    .history-card:hover {
+      border-color: #383838;
+    }
+    .pulse-dot {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-black text-white antialiased flex flex-col justify-between selection:bg-neutral-800">
+
+  <!-- TOP NAVIGATION / HEADER -->
+  <header class="border-b border-[#1c1c1c] px-6 py-4 bg-black/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot"></div>
+        <h1 class="text-base font-bold tracking-wider uppercase text-white">anti2 // Terminal</h1>
+        <span class="text-xs px-2 py-0.5 rounded border border-[#2a2a2a] text-[#888888] font-mono">APPWRITE CLOUD</span>
+      </div>
+
+      <div class="flex items-center space-x-4 text-xs">
+        <div class="flex items-center space-x-2 text-[#777777]">
+          <span>REFRESH IN:</span>
+          <span id="countdown" class="text-white font-semibold tabular-nums">10s</span>
+        </div>
+        <button id="refresh-btn" onclick="fetchState()" class="px-3 py-1 bg-[#111111] hover:bg-[#1a1a1a] border border-[#262626] hover:border-[#383838] text-white rounded transition text-xs font-medium cursor-pointer">
+          REFRESH
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-6xl mx-auto px-6 py-8 flex-1 w-full space-y-8">
+    
+    <!-- TOP STATUS ROW -->
+    <div class="flex items-center justify-between text-xs text-[#666666] pb-2 border-b border-[#141414]">
+      <div>STATUS: <span id="sync-status" class="text-emerald-400 font-semibold">SYNCHRONIZED</span></div>
+      <div id="last-updated">LAST TICK: --:--:-- UTC</div>
+    </div>
+
+    <!-- PRIMARY METRICS CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Portfolio Value -->
+      <div class="metric-card p-5">
+        <div class="text-[11px] font-medium tracking-wider text-[#737373] uppercase">Portfolio Value</div>
+        <div class="mt-2 text-2xl font-bold tracking-tight text-white tabular-nums" id="metric-equity">$10,000.00</div>
+        <div class="mt-1 text-xs font-semibold tabular-nums" id="metric-return">+0.00%</div>
+      </div>
+
+      <!-- Available Cash -->
+      <div class="metric-card p-5">
+        <div class="text-[11px] font-medium tracking-wider text-[#737373] uppercase">Available Cash</div>
+        <div class="mt-2 text-2xl font-bold tracking-tight text-white tabular-nums" id="metric-cash">$10,000.00</div>
+        <div class="mt-1 text-xs text-[#737373] tabular-nums" id="metric-cash-pct">100.0% unallocated</div>
+      </div>
+
+      <!-- Unrealized P&L -->
+      <div class="metric-card p-5">
+        <div class="text-[11px] font-medium tracking-wider text-[#737373] uppercase">Unrealized P&amp;L</div>
+        <div class="mt-2 text-2xl font-bold tracking-tight tabular-nums" id="metric-unrealized">$0.00</div>
+        <div class="mt-1 text-xs font-semibold tabular-nums" id="metric-unrealized-pct">+0.00%</div>
+      </div>
+
+      <!-- Realized P&L -->
+      <div class="metric-card p-5">
+        <div class="text-[11px] font-medium tracking-wider text-[#737373] uppercase">Realized P&amp;L</div>
+        <div class="mt-2 text-2xl font-bold tracking-tight tabular-nums" id="metric-realized">$0.00</div>
+        <div class="mt-1 text-xs text-[#737373] tabular-nums" id="metric-realized-sub">from closed trades</div>
+      </div>
+    </div>
+
+    <!-- OPEN POSITIONS SECTION -->
+    <div class="space-y-4 pt-2">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-white">Open Positions</h2>
+          <span id="pos-count-badge" class="px-2 py-0.5 text-[10px] rounded bg-[#181818] border border-[#292929] text-white">0</span>
+        </div>
+        <div class="text-xs text-[#666666]">LIVE PRICES VIA BINANCE</div>
+      </div>
+
+      <!-- CARDS GRID -->
+      <div id="positions-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered dynamically -->
+        <div class="col-span-full py-12 text-center text-xs text-[#666666] border border-dashed border-[#1f1f1f] rounded">
+          NO OPEN POSITIONS
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPLETED TRADES (CLOSED ROUND-TRIPS IN GREY CARDS) -->
+    <div class="space-y-4 pt-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-[#888888]">Completed Trades (Closed)</h2>
+          <span id="closed-count-badge" class="px-2 py-0.5 text-[10px] rounded bg-[#1c1c1c] border border-[#2c2c2c] text-[#999999]">0</span>
+        </div>
+        <div class="text-xs text-[#555555]">ROUND-TRIP EXECUTIONS</div>
+      </div>
+
+      <!-- GREY CARDS GRID -->
+      <div id="completed-trades-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="col-span-full py-8 text-center text-xs text-[#555555] border border-dashed border-[#222222] rounded">
+          Loading completed trades...
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-[#141414] px-6 py-6 text-center text-xs text-[#555555]">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div>anti2 Institutional Systematic Trader</div>
+      <div class="flex items-center space-x-4">
+        <span>Target: 10,000 USD Capital</span>
+        <span>•</span>
+        <span>Appwrite ID: antitrader</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const APPWRITE_ENDPOINT = 'https://nyc.cloud.appwrite.io/v1';
+    const PROJECT_ID = '6a9af04c003d0566314d';
+    const DATABASE_ID = 'antitrader';
+    const PORTFOLIO_COLLECTION = 'portfolio';
+    const PORTFOLIO_DOC_ID = 'current_portfolio';
+    const TRADES_COLLECTION = 'trades';
+
+    const INITIAL_CAPITAL = 10000.0;
+    let countdownSec = 10;
+    let countdownInterval = null;
+
+    function formatUSD(val) {
+      if (val === undefined || val === null || isNaN(val)) return '$0.00';
+      return (val < 0 ? '-$' : '$') + Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatPct(val) {
+      if (val === undefined || val === null || isNaN(val)) return '+0.00%';
+      const sign = val > 0 ? '+' : (val < 0 ? '-' : '+');
+      return `${sign}${Math.abs(val).toFixed(2)}%`;
+    }
+
+    function getColorClass(val) {
+      if (val > 0.0001) return 'text-emerald-400';
+      if (val < -0.0001) return 'text-rose-500';
+      return 'text-[#888888]';
+    }
+
+    async function fetchLivePrices(symbols) {
+      if (!symbols || symbols.length === 0) return {};
+      const priceMap = {};
+      try {
+        const promises = symbols.map(async (sym) => {
+          try {
+            const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(sym)}`);
+            if (res.ok) {
+              const data = await res.json();
+              priceMap[sym] = parseFloat(data.price);
+            }
+          } catch (e) {
+            // fallback
+          }
+        });
+        await Promise.all(promises);
+      } catch (e) {
+        console.error("Price fetch error:", e);
+      }
+      return priceMap;
+    }
+
+    async function fetchState() {
+      const statusEl = document.getElementById('sync-status');
+      statusEl.textContent = 'SYNCING...';
+      statusEl.className = 'text-yellow-400 font-semibold';
+
+      try {
+        // 1. Fetch Portfolio Doc
+        const portfolioUrl = `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${PORTFOLIO_COLLECTION}/documents/${PORTFOLIO_DOC_ID}`;
+        const pRes = await fetch(portfolioUrl, {
+          headers: { 'X-Appwrite-Project': PROJECT_ID }
+        });
+
+        if (!pRes.ok) {
+          throw new Error(`Portfolio fetch failed: ${pRes.status}`);
+        }
+
+        const pDoc = await pRes.json();
+        let pData = {};
+        if (typeof pDoc.data === 'string') {
+          try {
+            pData = JSON.parse(pDoc.data);
+          } catch (e) {
+            pData = {};
+          }
+        } else if (pDoc.data && typeof pDoc.data === 'object') {
+          pData = pDoc.data;
+        }
+
+        const cash = typeof pData.cash === 'number' ? pData.cash : (pDoc.cash || 10000.0);
+        const positions = pData.positions || {};
+        const posSymbols = Object.keys(positions);
+
+        // Fetch live prices for open positions
+        const livePrices = await fetchLivePrices(posSymbols);
+
+        // Compute valuation
+        let totalUnrealized = 0;
+        let positionsValue = 0;
+
+        const posCardsHtml = [];
+
+        for (const sym of posSymbols) {
+          const pos = positions[sym];
+          const qty = pos.qty || 0;
+          const entryPrice = pos.entry_price || 0;
+          const costBasis = pos.cost_basis || (qty * entryPrice);
+          const currentPrice = livePrices[sym] || entryPrice;
+          const currentVal = qty * currentPrice;
+          const diffUsd = currentVal - costBasis;
+          const diffPct = costBasis > 0 ? (diffUsd / costBasis) * 100 : 0;
+          const stopPrice = pos.stop_price || 0;
+          const trailing = pos.trailing_mode ? 'ACTIVE' : 'IDLE';
+
+          totalUnrealized += diffUsd;
+          positionsValue += currentVal;
+
+          const pnlClass = getColorClass(diffUsd);
+          const cleanSym = sym.replace('USDT', '');
+
+          posCardsHtml.push(`
+            <div class="metric-card p-5 flex flex-col justify-between space-y-4">
+              <div class="flex items-start justify-between border-b border-[#1b1b1b] pb-3">
+                <div>
+                  <div class="text-base font-bold text-white tracking-wide">${cleanSym}</div>
+                  <div class="text-[11px] text-[#71717a] font-mono">${sym}</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-sm font-bold tabular-nums ${pnlClass}">${formatUSD(diffUsd)}</div>
+                  <div class="text-[11px] font-semibold tabular-nums ${pnlClass}">${formatPct(diffPct)}</div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div class="text-[10px] text-[#71717a] uppercase">Current Price</div>
+                  <div class="font-bold text-white tabular-nums mt-0.5">$${currentPrice.toFixed(currentPrice < 1 ? 4 : 2)}</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-[#71717a] uppercase">Entry Price</div>
+                  <div class="text-[#a1a1aa] tabular-nums mt-0.5">$${entryPrice.toFixed(entryPrice < 1 ? 4 : 2)}</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-[#71717a] uppercase">Stop Price</div>
+                  <div class="text-rose-400 tabular-nums mt-0.5">$${stopPrice.toFixed(stopPrice < 1 ? 4 : 2)}</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-[#71717a] uppercase">Trailing Mode</div>
+                  <div class="text-[#a1a1aa] tabular-nums mt-0.5">${trailing}</div>
+                </div>
+              </div>
+
+              <div class="pt-2 border-t border-[#1a1a1a] flex justify-between items-center text-[11px] text-[#71717a]">
+                <span>Qty: ${qty.toFixed(2)}</span>
+                <span>Basis: ${formatUSD(costBasis)}</span>
+              </div>
+            </div>
+          `);
+        }
+
+        const totalEquity = cash + positionsValue;
+        const totalReturnPct = ((totalEquity - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100;
+        const unrealizedPct = positionsValue > 0 ? (totalUnrealized / (positionsValue - totalUnrealized)) * 100 : 0;
+        const cashPct = totalEquity > 0 ? (cash / totalEquity) * 100 : 100;
+
+        // Update DOM
+        document.getElementById('metric-equity').textContent = formatUSD(totalEquity);
+        const retEl = document.getElementById('metric-return');
+        retEl.textContent = formatPct(totalReturnPct);
+        retEl.className = `mt-1 text-xs font-semibold tabular-nums ${getColorClass(totalReturnPct)}`;
+
+        document.getElementById('metric-cash').textContent = formatUSD(cash);
+        document.getElementById('metric-cash-pct').textContent = `${cashPct.toFixed(1)}% unallocated`;
+
+        const unEl = document.getElementById('metric-unrealized');
+        unEl.textContent = formatUSD(totalUnrealized);
+        unEl.className = `mt-2 text-2xl font-bold tracking-tight tabular-nums ${getColorClass(totalUnrealized)}`;
+
+        const unPctEl = document.getElementById('metric-unrealized-pct');
+        unPctEl.textContent = formatPct(unrealizedPct);
+        unPctEl.className = `mt-1 text-xs font-semibold tabular-nums ${getColorClass(totalUnrealized)}`;
+
+        // Realized P&L is derived from historical baseline
+        const realizedUsd = totalEquity - totalUnrealized - INITIAL_CAPITAL;
+        const realEl = document.getElementById('metric-realized');
+        realEl.textContent = formatUSD(realizedUsd);
+        realEl.className = `mt-2 text-2xl font-bold tracking-tight tabular-nums ${getColorClass(realizedUsd)}`;
+
+        // Positions Grid
+        const gridEl = document.getElementById('positions-grid');
+        document.getElementById('pos-count-badge').textContent = posSymbols.length;
+
+        if (posSymbols.length > 0) {
+          gridEl.innerHTML = posCardsHtml.join('');
+        } else {
+          gridEl.innerHTML = `
+            <div class="col-span-full py-12 text-center text-xs text-[#666666] border border-dashed border-[#1f1f1f] rounded">
+              NO OPEN POSITIONS (100% CASH)
+            </div>
+          `;
+        }
+
+        // 2. Fetch & Compute Completed Round-Trip Trades (Grey Cards)
+        try {
+          const tradesUrl = `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${TRADES_COLLECTION}/documents?limit=100`;
+          const tRes = await fetch(tradesUrl, {
+            headers: { 'X-Appwrite-Project': PROJECT_ID }
+          });
+          if (tRes.ok) {
+            const tData = await tRes.json();
+            const docs = tData.documents || [];
+
+            // Group by symbol & pair into completed round-trips
+            const tradesBySym = {};
+            const sortedDocs = docs.sort((a, b) => (a.timestamp || a.$createdAt || '').localeCompare(b.timestamp || b.$createdAt || ''));
+            for (const d of sortedDocs) {
+              const sym = d.symbol || '';
+              if (!tradesBySym[sym]) tradesBySym[sym] = [];
+              tradesBySym[sym].push(d);
+            }
+
+            const completedTrades = [];
+
+            for (const sym in tradesBySym) {
+              const list = tradesBySym[sym];
+              const buys = list.filter(t => (t.action || '').toUpperCase() === 'BUY');
+              const sells = list.filter(t => (t.action || '').toUpperCase() === 'SELL');
+
+              for (const s of sells) {
+                const sTime = s.timestamp || s.$createdAt || '';
+                // Matching buy is the latest buy occurring before the sell
+                let matchingBuy = null;
+                for (let i = buys.length - 1; i >= 0; i--) {
+                  const bTime = buys[i].timestamp || buys[i].$createdAt || '';
+                  if (bTime <= sTime) {
+                    matchingBuy = buys[i];
+                    break;
+                  }
+                }
+
+                let buyPrice = matchingBuy ? Number(matchingBuy.price || 0) : 0;
+                const sellPrice = Number(s.price || 0);
+                const qty = Number(s.qty || 0);
+
+                // If buy price missing, attempt extraction from reasoning string
+                if (buyPrice === 0 && s.reasoning) {
+                  const m = s.reasoning.match(/from \$([0-9\.]+) entry/);
+                  if (m) buyPrice = parseFloat(m[1]);
+                }
+
+                const costBasis = (matchingBuy && Number(matchingBuy.cost_basis || 0) > 0)
+                  ? Number(matchingBuy.cost_basis)
+                  : (buyPrice * qty);
+                const proceeds = sellPrice * qty;
+                const pnlUsd = proceeds - costBasis;
+                const pnlPct = buyPrice > 0 ? ((sellPrice - buyPrice) / buyPrice) * 100 : 0;
+
+                completedTrades.push({
+                  symbol: sym,
+                  buyPrice: buyPrice,
+                  sellPrice: sellPrice,
+                  qty: qty,
+                  costBasis: costBasis,
+                  proceeds: proceeds,
+                  pnlUsd: pnlUsd,
+                  pnlPct: pnlPct,
+                  exitTime: s.timestamp || s.$createdAt || '',
+                  exitReason: s.reasoning || 'Trade exited.',
+                });
+              }
+            }
+
+            // Sort most recent exit first
+            completedTrades.sort((a, b) => b.exitTime.localeCompare(a.exitTime));
+
+            const closedGrid = document.getElementById('completed-trades-grid');
+            document.getElementById('closed-count-badge').textContent = completedTrades.length;
+
+            if (completedTrades.length === 0) {
+              closedGrid.innerHTML = `
+                <div class="col-span-full py-8 text-center text-xs text-[#555555] border border-dashed border-[#222222] rounded">
+                  NO COMPLETED TRADES YET
+                </div>
+              `;
+            } else {
+              closedGrid.innerHTML = completedTrades.map(t => {
+                const pnlClass = getColorClass(t.pnlUsd);
+                const exitDate = t.exitTime ? new Date(t.exitTime).toLocaleDateString() + ' ' + new Date(t.exitTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+                const cleanReason = t.exitReason.slice(0, 110) + (t.exitReason.length > 110 ? '...' : '');
+
+                return `
+                  <div class="history-card p-4 flex flex-col justify-between space-y-3">
+                    <div class="flex items-start justify-between border-b border-[#222222] pb-2">
+                      <div>
+                        <div class="text-sm font-bold text-[#cccccc]">${t.symbol}</div>
+                        <div class="text-[10px] text-[#666666] font-mono">${exitDate}</div>
+                      </div>
+                      <div class="text-right">
+                        <div class="text-sm font-bold tabular-nums ${pnlClass}">${formatUSD(t.pnlUsd)}</div>
+                        <div class="text-[10px] font-semibold tabular-nums ${pnlClass}">${formatPct(t.pnlPct)}</div>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div class="text-[9px] text-[#666666] uppercase">Buy Price</div>
+                        <div class="text-[#aaaaaa] font-mono mt-0.5">$${t.buyPrice.toFixed(t.buyPrice < 1 ? 4 : 2)}</div>
+                      </div>
+                      <div>
+                        <div class="text-[9px] text-[#666666] uppercase">Sell Price</div>
+                        <div class="text-[#aaaaaa] font-mono mt-0.5">$${t.sellPrice.toFixed(t.sellPrice < 1 ? 4 : 2)}</div>
+                      </div>
+                      <div>
+                        <div class="text-[9px] text-[#666666] uppercase">Position Size</div>
+                        <div class="text-[#888888] font-mono mt-0.5">${formatUSD(t.costBasis)}</div>
+                      </div>
+                      <div>
+                        <div class="text-[9px] text-[#666666] uppercase">Shares / Qty</div>
+                        <div class="text-[#888888] font-mono mt-0.5">${t.qty.toFixed(1)}</div>
+                      </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-[#1e1e1e] text-[10px] text-[#666666] line-clamp-2" title="${t.exitReason}">
+                      ${cleanReason}
+                    </div>
+                  </div>
+                `;
+              }).join('');
+            }
+          }
+        } catch (e) {
+          console.error("Completed trades error:", e);
+        }
+
+        statusEl.textContent = 'SYNCHRONIZED';
+        statusEl.className = 'text-emerald-400 font-semibold';
+        document.getElementById('last-updated').textContent = `LAST TICK: ${new Date().toLocaleTimeString()} UTC`;
+
+      } catch (err) {
+        console.error("Fetch error:", err);
+        statusEl.textContent = 'SYNC ERROR';
+        statusEl.className = 'text-rose-500 font-semibold';
+      } finally {
+        resetCountdown();
+      }
+    }
+
+    function resetCountdown() {
+      countdownSec = 10;
+      document.getElementById('countdown').textContent = `${countdownSec}s`;
+    }
+
+    // Auto-refresh timer every 10 seconds
+    setInterval(() => {
+      countdownSec--;
+      if (countdownSec <= 0) {
+        fetchState();
+      } else {
+        document.getElementById('countdown').textContent = `${countdownSec}s`;
+      }
+    }, 1000);
+
+    // Initial load
+    fetchState();
+  </script>
+</body>
+</html>
