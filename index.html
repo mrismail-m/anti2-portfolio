@@ -373,13 +373,24 @@
 
         // 2. Fetch & Compute Completed Round-Trip Trades (Grey Cards)
         try {
-          const tradesUrl = `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${TRADES_COLLECTION}/documents?limit=100`;
-          const tRes = await fetch(tradesUrl, {
-            headers: { 'X-Appwrite-Project': PROJECT_ID }
-          });
-          if (tRes.ok) {
+          // Fetch all trades using pagination loop so we get all records beyond default limit of 25
+          let allDocs = [];
+          let offset = 0;
+          while (offset <= 100) {
+            const tradesUrl = `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${TRADES_COLLECTION}/documents?limit=25&offset=${offset}`;
+            const tRes = await fetch(tradesUrl, {
+              headers: { 'X-Appwrite-Project': PROJECT_ID }
+            });
+            if (!tRes.ok) break;
             const tData = await tRes.json();
             const docs = tData.documents || [];
+            allDocs = allDocs.concat(docs);
+            if (docs.length < 25 || allDocs.length >= (tData.total || 0)) break;
+            offset += 25;
+          }
+
+          if (allDocs.length > 0) {
+            const docs = allDocs;
 
             // Group by symbol & pair into completed round-trips
             const tradesBySym = {};
