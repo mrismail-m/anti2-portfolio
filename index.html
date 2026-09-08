@@ -371,155 +371,68 @@
           `;
         }
 
-        // 2. Fetch & Compute Completed Round-Trip Trades (Grey Cards)
-        try {
-          // Fetch all trades using pagination loop so we get all records beyond default limit of 25
-          let allDocs = [];
-          let offset = 0;
-          while (offset <= 100) {
-            const tradesUrl = `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${TRADES_COLLECTION}/documents?limit=25&offset=${offset}`;
-            const tRes = await fetch(tradesUrl, {
-              headers: { 'X-Appwrite-Project': PROJECT_ID }
-            });
-            if (!tRes.ok) break;
-            const tData = await tRes.json();
-            const docs = tData.documents || [];
-            allDocs = allDocs.concat(docs);
-            if (docs.length < 25 || allDocs.length >= (tData.total || 0)) break;
-            offset += 25;
-          }
+        // 2. Render Completed Round-Trip Trades (Grey Cards) directly from Portfolio State
+        const completedTrades = (pData.completed_trades || []).slice().reverse();
+        const closedGrid = document.getElementById('completed-trades-grid');
+        document.getElementById('closed-count-badge').textContent = completedTrades.length;
 
-          if (allDocs.length > 0) {
-            const docs = allDocs;
+        if (completedTrades.length === 0) {
+          closedGrid.innerHTML = `
+            <div class="col-span-full py-8 text-center text-xs text-[#555555] border border-dashed border-[#222222] rounded">
+              NO COMPLETED TRADES YET
+            </div>
+          `;
+        } else {
+          closedGrid.innerHTML = completedTrades.map(t => {
+            const pnlUsd = Number(t.pnl_usd || 0);
+            const pnlPct = Number(t.pnl_pct || 0);
+            const pnlClass = getColorClass(pnlUsd);
+            const exitDate = t.exit_time ? new Date(t.exit_time).toLocaleDateString() + ' ' + new Date(t.exit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+            const cleanReason = (t.exit_reason || '').slice(0, 110) + ((t.exit_reason || '').length > 110 ? '...' : '');
+            const buyPrice = Number(t.buy_price || 0);
+            const sellPrice = Number(t.sell_price || 0);
+            const costBasis = Number(t.cost_basis || 0);
+            const qty = Number(t.qty || 0);
 
-            // Group by symbol & pair into completed round-trips
-            const tradesBySym = {};
-            const sortedDocs = docs.sort((a, b) => (a.timestamp || a.$createdAt || '').localeCompare(b.timestamp || b.$createdAt || ''));
-            for (const d of sortedDocs) {
-              const sym = d.symbol || '';
-              if (!tradesBySym[sym]) tradesBySym[sym] = [];
-              tradesBySym[sym].push(d);
-            }
-
-            const completedTrades = [];
-
-            for (const sym in tradesBySym) {
-              const list = tradesBySym[sym];
-              const buys = list.filter(t => (t.action || '').toUpperCase() === 'BUY');
-              const sells = list.filter(t => (t.action || '').toUpperCase() === 'SELL');
-
-              for (const s of sells) {
-                const sTime = s.timestamp || s.$createdAt || '';
-                // Matching buy is the latest buy occurring before the sell
-                let matchingBuy = null;
-                for (let i = buys.length - 1; i >= 0; i--) {
-                  const bTime = buys[i].timestamp || buys[i].$createdAt || '';
-                  if (bTime <= sTime) {
-                    matchingBuy = buys[i];
-                    break;
-                  }
-                }
-
-                let buyPrice = matchingBuy ? Number(matchingBuy.price || 0) : 0;
-                const sellPrice = Number(s.price || 0);
-                const qty = Number(s.qty || 0);
-
-                // If buy price missing, attempt extraction from reasoning string
-                if (buyPrice === 0 && s.reasoning) {
-                  const m = s.reasoning.match(/from \$([0-9\.]+) entry/);
-                  if (m) buyPrice = parseFloat(m[1]);
-                }
-
-                const costBasis = (matchingBuy && Number(matchingBuy.cost_basis || 0) > 0)
-                  ? Number(matchingBuy.cost_basis)
-                  : (buyPrice * qty);
-                const proceeds = sellPrice * qty;
-                const pnlUsd = proceeds - costBasis;
-                const pnlPct = buyPrice > 0 ? ((sellPrice - buyPrice) / buyPrice) * 100 : 0;
-
-                const exitTime = s.timestamp || s.$createdAt || '';
-                // Only include anti2 trades (Sep 7, 2026 15:00 UTC reset onwards)
-                if (exitTime < '2026-09-07T15:00:00') {
-                  continue;
-                }
-
-                completedTrades.push({
-                  symbol: sym,
-                  buyPrice: buyPrice,
-                  sellPrice: sellPrice,
-                  qty: qty,
-                  costBasis: costBasis,
-                  proceeds: proceeds,
-                  pnlUsd: pnlUsd,
-                  pnlPct: pnlPct,
-                  exitTime: exitTime,
-                  exitReason: s.reasoning || 'Trade exited.',
-                });
-              }
-            }
-
-            // Sort most recent exit first
-            completedTrades.sort((a, b) => b.exitTime.localeCompare(a.exitTime));
-
-            const closedGrid = document.getElementById('completed-trades-grid');
-            document.getElementById('closed-count-badge').textContent = completedTrades.length;
-
-            if (completedTrades.length === 0) {
-              closedGrid.innerHTML = `
-                <div class="col-span-full py-8 text-center text-xs text-[#555555] border border-dashed border-[#222222] rounded">
-                  NO COMPLETED TRADES YET
-                </div>
-              `;
-            } else {
-              closedGrid.innerHTML = completedTrades.map(t => {
-                const pnlClass = getColorClass(t.pnlUsd);
-                const exitDate = t.exitTime ? new Date(t.exitTime).toLocaleDateString() + ' ' + new Date(t.exitTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
-                const cleanReason = t.exitReason.slice(0, 110) + (t.exitReason.length > 110 ? '...' : '');
-
-                return `
-                  <div class="history-card p-4 flex flex-col justify-between space-y-3">
-                    <div class="flex items-start justify-between border-b border-[#222222] pb-2">
-                      <div>
-                        <div class="text-sm font-bold text-[#cccccc]">${t.symbol}</div>
-                        <div class="text-[10px] text-[#666666] font-mono">${exitDate}</div>
-                      </div>
-                      <div class="text-right">
-                        <div class="text-sm font-bold tabular-nums ${pnlClass}">${formatUSD(t.pnlUsd)}</div>
-                        <div class="text-[10px] font-semibold tabular-nums ${pnlClass}">${formatPct(t.pnlPct)}</div>
-                      </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <div class="text-[9px] text-[#666666] uppercase">Buy Price</div>
-                        <div class="text-[#aaaaaa] font-mono mt-0.5">$${t.buyPrice.toFixed(t.buyPrice < 1 ? 4 : 2)}</div>
-                      </div>
-                      <div>
-                        <div class="text-[9px] text-[#666666] uppercase">Sell Price</div>
-                        <div class="text-[#aaaaaa] font-mono mt-0.5">$${t.sellPrice.toFixed(t.sellPrice < 1 ? 4 : 2)}</div>
-                      </div>
-                      <div>
-                        <div class="text-[9px] text-[#666666] uppercase">Position Size</div>
-                        <div class="text-[#888888] font-mono mt-0.5">${formatUSD(t.costBasis)}</div>
-                      </div>
-                      <div>
-                        <div class="text-[9px] text-[#666666] uppercase">Shares / Qty</div>
-                        <div class="text-[#888888] font-mono mt-0.5">${t.qty.toFixed(1)}</div>
-                      </div>
-                    </div>
-
-                    <div class="pt-2 border-t border-[#1e1e1e] text-[10px] text-[#666666] line-clamp-2" title="${t.exitReason}">
-                      ${cleanReason}
-                    </div>
+            return `
+              <div class="history-card p-4 flex flex-col justify-between space-y-3">
+                <div class="flex items-start justify-between border-b border-[#222222] pb-2">
+                  <div>
+                    <div class="text-sm font-bold text-[#cccccc]">${t.symbol}</div>
+                    <div class="text-[10px] text-[#666666] font-mono">${exitDate}</div>
                   </div>
-                `;
-              }).join('');
-            }
-          }
-        } catch (e) {
-          console.error("Completed trades error:", e);
-        }
+                  <div class="text-right">
+                    <div class="text-sm font-bold tabular-nums ${pnlClass}">${formatUSD(pnlUsd)}</div>
+                    <div class="text-[10px] font-semibold tabular-nums ${pnlClass}">${formatPct(pnlPct)}</div>
+                  </div>
+                </div>
 
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <div class="text-[9px] text-[#666666] uppercase">Buy Price</div>
+                    <div class="text-[#aaaaaa] font-mono mt-0.5">$${buyPrice.toFixed(buyPrice < 1 ? 4 : 2)}</div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] text-[#666666] uppercase">Sell Price</div>
+                    <div class="text-[#aaaaaa] font-mono mt-0.5">$${sellPrice.toFixed(sellPrice < 1 ? 4 : 2)}</div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] text-[#666666] uppercase">Position Size</div>
+                    <div class="text-[#888888] font-mono mt-0.5">${formatUSD(costBasis)}</div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] text-[#666666] uppercase">Shares / Qty</div>
+                    <div class="text-[#888888] font-mono mt-0.5">${qty.toFixed(1)}</div>
+                  </div>
+                </div>
+
+                <div class="pt-2 border-t border-[#1e1e1e] text-[10px] text-[#666666] line-clamp-2" title="${t.exit_reason || ''}">
+                  ${cleanReason}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
         statusEl.textContent = 'SYNCHRONIZED';
         statusEl.className = 'text-emerald-400 font-semibold';
         document.getElementById('last-updated').textContent = `LAST TICK: ${new Date().toLocaleTimeString()} UTC`;
