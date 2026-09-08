@@ -369,9 +369,38 @@
         if (posSymbols.length > 0) {
           gridEl.innerHTML = posCardsHtml.join('');
         } else {
+          const mStatus = pData.market_status || {};
+          const headline = mStatus.headline || "CAPITAL PRESERVATION MODE";
+          const reason = mStatus.reason || "Capital safely allocated in cash. Bot is continuously screening the market for high-conviction breakout setups.";
+          const btcPrice = mStatus.btc_price ? `$${Number(mStatus.btc_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '--';
+          const btcEma = mStatus.btc_ema50 ? `$${Number(mStatus.btc_ema50).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '--';
+          const isDefensive = mStatus.badge === "DEFENSIVE" || headline.includes("PRESERVATION") || headline.includes("DEFENSE");
+          const badgeClass = isDefensive ? "text-amber-400 border-amber-500/30 bg-amber-500/10" : "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
+          const dotClass = isDefensive ? "bg-amber-400" : "bg-emerald-400";
+
           gridEl.innerHTML = `
-            <div class="col-span-full py-12 text-center text-xs text-[#666666] border border-dashed border-[#1f1f1f] rounded">
-              NO OPEN POSITIONS (100% CASH)
+            <div class="col-span-full p-6 border border-[#222222] bg-[#111111] rounded-xl flex flex-col items-center justify-center text-center space-y-4 shadow-sm">
+              <div class="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full border text-xs font-semibold tracking-wider uppercase ${badgeClass}">
+                <span class="w-2 h-2 rounded-full ${dotClass} animate-pulse"></span>
+                <span>${headline}</span>
+              </div>
+              <div class="space-y-1">
+                <div class="text-sm font-bold text-white tracking-wide">NO ACTIVE TRADES • 100% CAPITAL IN CASH</div>
+                <div class="text-xs text-[#71717a]">Reason for Sitting in Cash:</div>
+              </div>
+              <div class="p-3.5 bg-[#161616] border border-[#262626] rounded-lg max-w-2xl text-xs text-[#d4d4d8] font-mono leading-relaxed text-left">
+                <div class="flex items-start space-x-2">
+                  <span class="text-amber-400 text-sm leading-none mt-0.5">🛡️</span>
+                  <div>${reason}</div>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center justify-center gap-6 text-[11px] text-[#71717a] pt-1">
+                <span>BTC Reference: <strong class="text-[#e4e4e7]">${btcPrice}</strong></span>
+                <span>•</span>
+                <span>4H EMA50: <strong class="text-[#e4e4e7]">${btcEma}</strong></span>
+                <span>•</span>
+                <span>Protection: <strong class="text-amber-400">Zero Drawdown Risk</strong></span>
+              </div>
             </div>
           `;
         }
