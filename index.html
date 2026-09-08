@@ -329,10 +329,16 @@
           `);
         }
 
-        const totalEquity = cash + positionsValue;
+        // 2. Completed Round-Trip Trades (Source of Truth for Realized P&L)
+        const completedTradesList = (pData.completed_trades || []);
+        const realizedUsd = completedTradesList.reduce((acc, t) => acc + Number(t.pnl_usd || 0), 0);
+
+        // Ground-truth accounting: Total Equity = Initial Capital + Realized P&L + Unrealized P&L
+        const totalEquity = INITIAL_CAPITAL + realizedUsd + totalUnrealized;
         const totalReturnPct = ((totalEquity - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100;
         const unrealizedPct = positionsValue > 0 ? (totalUnrealized / (positionsValue - totalUnrealized)) * 100 : 0;
-        const cashPct = totalEquity > 0 ? (cash / totalEquity) * 100 : 100;
+        const effectiveCash = Math.max(0, totalEquity - positionsValue);
+        const cashPct = totalEquity > 0 ? (effectiveCash / totalEquity) * 100 : 100;
 
         // Update DOM
         document.getElementById('metric-equity').textContent = formatUSD(totalEquity);
@@ -340,7 +346,7 @@
         retEl.textContent = formatPct(totalReturnPct);
         retEl.className = `mt-1 text-xs font-semibold tabular-nums ${getColorClass(totalReturnPct)}`;
 
-        document.getElementById('metric-cash').textContent = formatUSD(cash);
+        document.getElementById('metric-cash').textContent = formatUSD(effectiveCash);
         document.getElementById('metric-cash-pct').textContent = `${cashPct.toFixed(1)}% unallocated`;
 
         const unEl = document.getElementById('metric-unrealized');
@@ -351,8 +357,7 @@
         unPctEl.textContent = formatPct(unrealizedPct);
         unPctEl.className = `mt-1 text-xs font-semibold tabular-nums ${getColorClass(totalUnrealized)}`;
 
-        // Realized P&L is derived from historical baseline
-        const realizedUsd = totalEquity - totalUnrealized - INITIAL_CAPITAL;
+        // Realized P&L
         const realEl = document.getElementById('metric-realized');
         realEl.textContent = formatUSD(realizedUsd);
         realEl.className = `mt-2 text-2xl font-bold tracking-tight tabular-nums ${getColorClass(realizedUsd)}`;
