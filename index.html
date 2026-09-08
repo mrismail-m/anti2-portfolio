@@ -426,6 +426,12 @@
                 const pnlUsd = proceeds - costBasis;
                 const pnlPct = buyPrice > 0 ? ((sellPrice - buyPrice) / buyPrice) * 100 : 0;
 
+                const exitTime = s.timestamp || s.$createdAt || '';
+                // Only include anti2 trades (Sep 7, 2026 15:00 UTC reset onwards)
+                if (exitTime < '2026-09-07T15:00:00') {
+                  continue;
+                }
+
                 completedTrades.push({
                   symbol: sym,
                   buyPrice: buyPrice,
@@ -435,7 +441,7 @@
                   proceeds: proceeds,
                   pnlUsd: pnlUsd,
                   pnlPct: pnlPct,
-                  exitTime: s.timestamp || s.$createdAt || '',
+                  exitTime: exitTime,
                   exitReason: s.reasoning || 'Trade exited.',
                 });
               }
