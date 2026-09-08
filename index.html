@@ -405,12 +405,14 @@
                   <div>${reason}</div>
                 </div>
               </div>
-              <div class="flex flex-wrap items-center justify-center gap-6 text-[11px] text-[#71717a] pt-1">
+              <div class="flex flex-wrap items-center justify-center gap-5 text-[11px] text-[#71717a] pt-1">
                 <span>BTC Reference: <strong class="text-[#e4e4e7]">${btcPrice}</strong></span>
                 <span>•</span>
                 <span>4H EMA50: <strong class="text-[#e4e4e7]">${btcEma}</strong></span>
                 <span>•</span>
                 <span>Protection: <strong class="text-amber-400">Zero Drawdown Risk</strong></span>
+                <span>•</span>
+                <span>Evaluated: <strong class="text-[#a1a1aa]">${mStatus.updated_at ? new Date(mStatus.updated_at).toLocaleTimeString() : 'Every 5m'}</strong></span>
               </div>
             </div>
           `;
